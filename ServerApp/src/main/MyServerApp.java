@@ -171,7 +171,12 @@ class ClientThread extends Thread {
 								
 							case "REG": //PHONE_NUMBER|EVENTID
 								//ZAPISANIE USERA NA WYDARZENIE
-								//this.clientEventId = parts[2];
+								try{
+									this.clientEventId = Integer.parseInt(parts[2]);
+									this.sendMsg("self", "REG_OK|"+this.clientEventId);
+								}catch(ArrayIndexOutOfBoundsException ex) {
+									this.sendMsg("self", "WRG_COMM");
+								}
 								//READ FROM EVENT DB
 								break;
 							
@@ -229,7 +234,6 @@ class ClientThread extends Thread {
 		
 		this.server.log("Client " + this.clientPhoneNum + " terminated");
 	}
-	
 	
 	public void sendMsg(String phoneNum, String msg) {
 		if(msg != null)
