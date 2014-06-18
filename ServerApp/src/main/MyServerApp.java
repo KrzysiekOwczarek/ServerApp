@@ -9,6 +9,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -90,7 +91,7 @@ public class MyServerApp implements Runnable {
 class ClientThread extends Thread {
 	private String clientPhoneNum = null;
 	private Socket clientSocket = null;
-	private String clientEventId = null;
+	private int clientEventId = 0;
 	private DataInputStream is = null;
 	private PrintStream os = null;
 	private BufferedReader reader = null;
@@ -145,21 +146,32 @@ class ClientThread extends Thread {
 								
 							case "LOC": //PHONE_NUM|LAT|LON
 								//PRZYJECIE LOKALIZACJI OD USERA
-								//this.writeLocToSQL(parts[2], parts[3]);
+								Date date = new Date();
+								SimpleDateFormat ft = new SimpleDateFormat ("yyyy-MM-dd HH:mm:ss");
+								try {
+									this.databaseConnection.writeLocation(parts[1], this.clientEventId, parts[2], parts[3], ft.format(date));
+								}catch(ArrayIndexOutOfBoundsException ex) {
+									this.sendMsg("self", "WRG_COMM");
+								}
 								break;
 								
 							case "EVENT": //PHONE_NUM|EVENT_NAME|LAT|LON|DATE
 								//REJESTRACJA EVENTU -> ODESŁANIE PRZYDZIELONEGO UNIQUE ID
-								if(this.databaseConnection.writeEvent(parts[1], parts[2], parts[3], parts[4], parts[5])) {
+								try {
+									this.databaseConnection.writeEvent(parts[1], parts[2], parts[3], parts[4], parts[5]);
 									int eventId = this.databaseConnection.checkEvent(parts[1], parts[2], parts[3], parts[4], parts[5]);
+									this.clientEventId = eventId;
 									this.sendMsg("self", "EVENT_OK|"+eventId);
+									//ZWRACA NOWE ID JESLI STWORZY A STARE JESLI JEST
+								}catch(ArrayIndexOutOfBoundsException ex) {
+									this.sendMsg("self", "WRG_COMM");
 								}
 								
 								break;
 								
 							case "REG": //PHONE_NUMBER|EVENTID
 								//ZAPISANIE USERA NA WYDARZENIE
-								this.clientEventId = parts[2];
+								//this.clientEventId = parts[2];
 								//READ FROM EVENT DB
 								break;
 							
@@ -218,9 +230,6 @@ class ClientThread extends Thread {
 		this.server.log("Client " + this.clientPhoneNum + " terminated");
 	}
 	
-	public void setClientEventId(String id) {
-		this.clientEventId = id;
-	}
 	
 	public void sendMsg(String phoneNum, String msg) {
 		if(msg != null)
@@ -278,10 +287,12 @@ class ClientDAO {
  
     public ClientDAO() { }
 
-    public void writeLocation(String phoneNum, String lat, String lon) {
-    	query = "";
+    public void writeLocation(String phoneNum, int id, String lat, String lon, String date) {
+    	query = "INSERT INTO locations(id, eventId, phoneNum, lat, lon, date) "
+    			+ "VALUES (NULL, '" + id + "', '" + phoneNum + "', '" + lat + "', '" + lon + "', '" + date + "')";
     	
-    	this.executeQuery();
+    	if(id != 0)
+    		this.executeQuery();
     }
     
     public boolean writeEvent(String phoneNum, String eventName, String lat, String lon, String date) {
