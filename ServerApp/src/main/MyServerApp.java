@@ -12,6 +12,7 @@ import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
@@ -94,6 +95,7 @@ class ClientThread extends Thread {
 	private PrintStream os = null;
 	private BufferedReader reader = null;
 	private MyServerApp server = null;
+	private ClientDAO databaseConnection = new ClientDAO();
 	
 	private ArrayList<ClientThread> clientThreads;
 	
@@ -143,12 +145,16 @@ class ClientThread extends Thread {
 								
 							case "LOC": //PHONE_NUM|LAT|LON
 								//PRZYJECIE LOKALIZACJI OD USERA
-								this.writeLocToSQL(parts[2], parts[3]);
+								//this.writeLocToSQL(parts[2], parts[3]);
 								break;
 								
 							case "EVENT": //PHONE_NUM|EVENT_NAME|LAT|LON|DATE
 								//REJESTRACJA EVENTU -> ODESŁANIE PRZYDZIELONEGO UNIQUE ID
-								this.writeEventToSQL(parts[2], parts[3], parts[4], parts[5]);
+								if(this.databaseConnection.writeEvent(parts[1], parts[2], parts[3], parts[4], parts[5])) {
+									int eventId = this.databaseConnection.checkEvent(parts[1], parts[2], parts[3], parts[4], parts[5]);
+									this.sendMsg("self", "EVENT_OK|"+eventId);
+								}
+								
 								break;
 								
 							case "REG": //PHONE_NUMBER|EVENTID
@@ -212,21 +218,6 @@ class ClientThread extends Thread {
 		this.server.log("Client " + this.clientPhoneNum + " terminated");
 	}
 	
-	public void writeLocToSQL(String lat, String lon) {
-		System.out.println("LOC TO SQL: " + this.clientPhoneNum + " on event: " + this.clientEventId + " location: " + lat + " " + lon);
-	}
-	
-	public int writeEventToSQL(String name, String lat, String lon, String date) {
-		System.out.println("EVENT TO SQL: event" + name + " on : " + date + " location: " + lat + " " + lon);
-		
-		return this.getEventIdFromSQL(name, lat, lon, date);
-	}
-	
-	private int getEventIdFromSQL(String name, String lat, String lon, String date) {
-	
-		return 0;
-	}
-	
 	public void setClientEventId(String id) {
 		this.clientEventId = id;
 	}
@@ -273,9 +264,9 @@ class ClientThread extends Thread {
 }
 
 class ClientDAO {
-	private final static String DBURL = "jdbc:mysql://127.0.0.1:3306/blog";
+	private final static String DBURL = "jdbc:mysql://127.0.0.1:8889/meet";
     private final static String DBUSER = "root";
-    private final static String DBPASS = "****";
+    private final static String DBPASS = "root";
     private final static String DBDRIVER = "com.mysql.jdbc.Driver";
 
     //obiekt tworzący połączenie z bazą danych.
@@ -290,6 +281,24 @@ class ClientDAO {
     public void writeLocation(String phoneNum, String lat, String lon) {
     	query = "";
     	
+    	this.executeQuery();
+    }
+    
+    public boolean writeEvent(String phoneNum, String eventName, String lat, String lon, String date) {
+    	
+    	if(this.checkEvent(phoneNum, eventName, lat, lon, date) == 0) {
+    		query = "INSERT INTO events(id, eventPhoneNum, eventName, eventLat, eventLon, eventDate) "
+    			+ "VALUES (NULL, '" + phoneNum + "', '" + eventName + "', '" + lat + "', '" + lon + "', '" + date + "')";
+    	
+    		this.executeQuery();
+    		
+    		return true;
+    	}
+    	
+    	return false;
+    }
+    
+    private void executeQuery() {
     	try {
             Class.forName(DBDRIVER).newInstance();
             connection = DriverManager.getConnection(DBURL, DBUSER, DBPASS);
@@ -304,20 +313,32 @@ class ClientDAO {
         }
     }
     
-    public void writeEvent(String phoneNum, String eventName, String lat, String lon, String date) {
-    	query = "";
+    public int checkEvent(String phoneNum, String eventName, String lat, String lon, String date) {
+    	query = "SELECT id FROM events WHERE eventPhoneNum LIKE '" + phoneNum + "' AND eventName LIKE '" + eventName + "' "
+    			+ "AND eventLat LIKE '" + lat + "' AND eventLon LIKE '" + lon + "' AND eventDate LIKE '" + date + "'";
+    	
+    	ResultSet result = null;
     	
     	try {
             Class.forName(DBDRIVER).newInstance();
             connection = DriverManager.getConnection(DBURL, DBUSER, DBPASS);
             statement = connection.createStatement();
-            statement.executeUpdate(query);
+            //statement.executeUpdate(query);
  
+            result = statement.executeQuery(query);
             //zwolnienie zasobów i zamknięcie połączenia
+            
+			if(result.first())
+				return Integer.parseInt(result.getString("id"));
+    		
+            
             statement.close();
             connection.close();
         } catch (InstantiationException | IllegalAccessException | ClassNotFoundException | SQLException e) {
             e.printStackTrace();
         }
+    	
+    	return 0;
+    		
     }
 }
