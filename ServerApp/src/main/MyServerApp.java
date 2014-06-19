@@ -96,7 +96,8 @@ class ClientThread extends Thread {
 	private PrintStream os = null;
 	private BufferedReader reader = null;
 	private MyServerApp server = null;
-	private ClientDAO databaseConnection = new ClientDAO();
+	private ClientDAO databaseConnection = new ClientDAO(); //DO SINGLETONA
+	private boolean active = false;
 	
 	private ArrayList<ClientThread> clientThreads;
 	
@@ -137,7 +138,7 @@ class ClientThread extends Thread {
 							case "HELLO": //PHONE_NUM
 								try{
 									this.clientPhoneNum = parts[1];
-									this.sendMsg("self", "HELLO");
+									this.sendMsg("self", "HELLO_OK");
 								}catch(ArrayIndexOutOfBoundsException ex) {
 									this.sendMsg("self", "RE|HELLO");
 								}
@@ -146,12 +147,14 @@ class ClientThread extends Thread {
 								
 							case "LOC": //PHONE_NUM|LAT|LON
 								//PRZYJECIE LOKALIZACJI OD USERA
-								Date date = new Date();
-								SimpleDateFormat ft = new SimpleDateFormat ("yyyy-MM-dd HH:mm:ss");
-								try {
-									this.databaseConnection.writeLocation(parts[1], this.clientEventId, parts[2], parts[3], ft.format(date));
-								}catch(ArrayIndexOutOfBoundsException ex) {
-									this.sendMsg("self", "WRG_COMM");
+								if(!this.active) {
+									Date date = new Date();
+									SimpleDateFormat ft = new SimpleDateFormat ("yyyy-MM-dd HH:mm:ss");
+									try {
+										this.databaseConnection.writeLocation(parts[1], this.clientEventId, parts[2], parts[3], ft.format(date));
+									}catch(ArrayIndexOutOfBoundsException ex) {
+										this.sendMsg("self", "WRG_COMM");
+									}
 								}
 								break;
 								
@@ -160,8 +163,13 @@ class ClientThread extends Thread {
 								try {
 									this.databaseConnection.writeEvent(parts[1], parts[2], parts[3], parts[4], parts[5]);
 									int eventId = this.databaseConnection.checkEvent(parts[1], parts[2], parts[3], parts[4], parts[5]);
-									this.clientEventId = eventId;
-									this.sendMsg("self", "EVENT_OK|"+eventId);
+									if(eventId != 0){
+										this.clientEventId = eventId;
+										this.active = true;
+										this.sendMsg("self", "EVENT_OK|"+eventId);
+									}else {
+										this.sendMsg("self", "EVENT_NOT_OK");
+									}
 									//ZWRACA NOWE ID JESLI STWORZY A STARE JESLI JEST
 								}catch(ArrayIndexOutOfBoundsException ex) {
 									this.sendMsg("self", "WRG_COMM");
@@ -172,8 +180,18 @@ class ClientThread extends Thread {
 							case "REG": //PHONE_NUMBER|EVENTID
 								//ZAPISANIE USERA NA WYDARZENIE
 								try{
-									this.clientEventId = Integer.parseInt(parts[2]);
-									this.sendMsg("self", "REG_OK|"+this.clientEventId);
+									if(parts[2] != null && Integer.parseInt(parts[2]) != 0) {
+										if(this.databaseConnection.checkEventById(Integer.parseInt(parts[2])) != 0) {
+											this.clientEventId = Integer.parseInt(parts[2]);
+											this.active = true;
+											SQLEventResult result = this.databaseConnection.getEventById(clientEventId);
+											this.sendMsg("self", "REG_OK|"+result.getId()+"|"+result.getName()+"|"+result.getLat()+"|"+result.getLon()+"|"+result.getDate());
+										}else{
+											this.sendMsg("self", "REG_NOT_OK");
+										}
+									}
+									//SPRAWDŹ CZY ISTNIEJE
+									
 								}catch(ArrayIndexOutOfBoundsException ex) {
 									this.sendMsg("self", "WRG_COMM");
 								}
@@ -302,7 +320,7 @@ class ClientDAO {
     public boolean writeEvent(String phoneNum, String eventName, String lat, String lon, String date) {
     	
     	if(this.checkEvent(phoneNum, eventName, lat, lon, date) == 0) {
-    		query = "INSERT INTO events(id, eventPhoneNum, eventName, eventLat, eventLon, eventDate) "
+    		query = "INSERT INTO events(id, phoneNum, name, lat, lon, date) "
     			+ "VALUES (NULL, '" + phoneNum + "', '" + eventName + "', '" + lat + "', '" + lon + "', '" + date + "')";
     	
     		this.executeQuery();
@@ -329,8 +347,8 @@ class ClientDAO {
     }
     
     public int checkEvent(String phoneNum, String eventName, String lat, String lon, String date) {
-    	query = "SELECT id FROM events WHERE eventPhoneNum LIKE '" + phoneNum + "' AND eventName LIKE '" + eventName + "' "
-    			+ "AND eventLat LIKE '" + lat + "' AND eventLon LIKE '" + lon + "' AND eventDate LIKE '" + date + "'";
+    	query = "SELECT id FROM events WHERE phoneNum LIKE '" + phoneNum + "' AND name LIKE '" + eventName + "' "
+    			+ "AND lat LIKE '" + lat + "' AND lon LIKE '" + lon + "' AND date LIKE '" + date + "'";
     	
     	ResultSet result = null;
     	
@@ -356,4 +374,134 @@ class ClientDAO {
     	return 0;
     		
     }
+    
+    public int checkEventById(int eventId) {
+    	
+    	query = "SELECT id FROM events WHERE id LIKE '"+eventId+"'";
+    	
+    	ResultSet result = null;
+    	
+    	try {
+            Class.forName(DBDRIVER).newInstance();
+            connection = DriverManager.getConnection(DBURL, DBUSER, DBPASS);
+            statement = connection.createStatement();
+            //statement.executeUpdate(query);
+ 
+            result = statement.executeQuery(query);
+            //zwolnienie zasobów i zamknięcie połączenia
+            
+			if(result.first())
+				return Integer.parseInt(result.getString("id"));
+    		
+            
+            statement.close();
+            connection.close();
+        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException | SQLException e) {
+            e.printStackTrace();
+        }
+    	
+    	return 0;
+    }
+    
+    public SQLEventResult getEventById(int eventId) {
+    	query = "SELECT * FROM events WHERE id LIKE '"+eventId+"'";
+    	
+    	SQLEventResult eventResult = new SQLEventResult();
+    	
+    	try {
+            Class.forName(DBDRIVER).newInstance();
+            connection = DriverManager.getConnection(DBURL, DBUSER, DBPASS);
+            statement = connection.createStatement();
+ 
+            ResultSet result = statement.executeQuery(query);
+            
+			while(result.next()) {
+				eventResult.setId(result.getInt("id"));
+				eventResult.setPhoneNum(result.getString("phoneNum"));
+				eventResult.setName(result.getString("name"));
+				eventResult.setLat(result.getString("lat"));
+				eventResult.setLon(result.getString("lon"));
+				eventResult.setDate(result.getString("date"));
+			}
+    		
+            statement.close();
+            connection.close();
+        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException | SQLException e) {
+            e.printStackTrace();
+        }
+    	
+    	return eventResult;
+    }
+}
+
+class SQLEventResult {
+	private int id;
+	private String phoneNum;
+	private String name;
+	private String lat;
+	private String lon;
+	private String date;
+	
+	public SQLEventResult() {
+		
+	}
+	
+	public SQLEventResult(int id, String phone, String name, String lon, String lat, String date) {
+		this.id = id;
+		this.phoneNum = phone;
+		this.name = name;
+		this.lon = lon;
+		this.lat = lat;
+		this.date = date;
+	}
+	
+	public int getId() {
+		return id;
+	}
+
+	public String getPhoneNum() {
+		return phoneNum;
+	}
+
+	public String getName() {
+		return name;
+	}
+
+	public String getLat() {
+		return lat;
+	}
+
+	public String getLon() {
+		return lon;
+	}
+
+	public String getDate() {
+		return date;
+	}
+
+	public void setId(int id) {
+		this.id = id;
+	}
+
+	public void setPhoneNum(String phone) {
+		this.phoneNum = phone;
+	}
+
+	public void setName(String name) {
+		this.name = name;
+	}
+
+	public void setLat(String lat) {
+		this.lat = lat;
+	}
+
+	public void setLon(String lon) {
+		this.lon = lon;
+	}
+
+	public void setDate(String date) {
+		this.date = date;
+	}
+	
+	
 }
