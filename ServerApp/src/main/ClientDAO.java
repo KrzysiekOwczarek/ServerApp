@@ -5,6 +5,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 
 class ClientDAO {
 	private final static String DBURL = "jdbc:mysql://127.0.0.1:8889/meet";
@@ -143,5 +144,37 @@ class ClientDAO {
         }
     	
     	return eventResult;
+    }
+    
+    public ArrayList<SQLLocationResult> getLocations() {
+    	ArrayList<SQLLocationResult> locationResults = new ArrayList<SQLLocationResult>();
+    	query = "SELECT * FROM (SELECT * FROM locations ORDER BY date DESC ) as res GROUP BY phoneNum";
+    	
+    	try {
+            Class.forName(DBDRIVER).newInstance();
+            connection = DriverManager.getConnection(DBURL, DBUSER, DBPASS);
+            statement = connection.createStatement();
+ 
+            ResultSet result = statement.executeQuery(query);
+            
+			while(result.next()) {
+				SQLLocationResult locationResult = new SQLLocationResult();
+				locationResult.setId(result.getInt("id"));
+				locationResult.setPhoneNum(result.getString("phoneNum"));
+				locationResult.setEventId(result.getInt("eventId"));
+				locationResult.setLat(result.getString("lat"));
+				locationResult.setLon(result.getString("lon"));
+				locationResult.setDate(result.getString("date"));
+				
+				locationResults.add(locationResult);
+			}
+    		
+            statement.close();
+            connection.close();
+        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException | SQLException e) {
+            e.printStackTrace();
+        }
+    	
+    	return locationResults;
     }
 }

@@ -44,9 +44,6 @@ class ClientThread extends Thread {
 			os = new PrintStream(clientSocket.getOutputStream());
 			reader = new BufferedReader(new InputStreamReader(is));
 			
-			//Date date = new Date();
-			//this.clientName = "Client_from_" + new Timestamp(date.getTime());
-			
 			while(isRunning) {
 				try {
 					String[] parts = null;
@@ -69,7 +66,7 @@ class ClientThread extends Thread {
 								
 							case "LOC": //PHONE_NUM|LAT|LON
 								//PRZYJECIE LOKALIZACJI OD USERA
-								if(!this.active) {
+								if(this.active) {
 									Date date = new Date();
 									SimpleDateFormat ft = new SimpleDateFormat ("yyyy-MM-dd HH:mm:ss");
 									try {
@@ -218,5 +215,14 @@ class ClientThread extends Thread {
 	public PrintStream getOs() {
 		return os;
 	}
+
+	public int getClientEventId() {
+		return clientEventId;
+	}
+
+	public String getClientPhoneNum() {
+		return clientPhoneNum;
+	}
+	
 	
 }
