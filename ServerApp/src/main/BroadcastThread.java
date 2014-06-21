@@ -7,11 +7,13 @@ public class BroadcastThread extends Thread{
 	private boolean isRunning;
 	private ClientDAO databaseConnection;
 	private ArrayList<SQLLocationResult> result = null;
+	private MyServerApp server = null;
 	
-	public BroadcastThread(ArrayList<ClientThread> clientThreads) {
+	public BroadcastThread(ArrayList<ClientThread> clientThreads, MyServerApp server) {
 		this.clientThreads = clientThreads;
 		this.isRunning = true;
 		this.databaseConnection = new ClientDAO();
+		this.server = server;
 	}
 	
 	public void run() {
@@ -19,11 +21,12 @@ public class BroadcastThread extends Thread{
 			synchronized(this) {
 				result = databaseConnection.getLocations();
 				
+				clientThreads = server.getClientThreads();
+				
 				for(ClientThread clientThread: clientThreads) {
-					//if(clientThread) WYSŁANIE W RAMACH SESJI
 					for(SQLLocationResult res: result){
-						if(clientThread.getClientPhoneNum() != null && !res.getPhoneNum().equals(clientThread.getClientPhoneNum()) && res.getEventId() == clientThread.getClientEventId() ){
-							System.out.println("send to " + clientThread.getClientPhoneNum() + " about " + res.getPhoneNum());
+						if(clientThread.getPhoneNum() != null && !res.getPhoneNum().equals(clientThread.getPhoneNum()) && res.getEventId() == clientThread.getEventId() ){
+							System.out.println("send to " + clientThread.getPhoneNum() + " about " + res.getPhoneNum());
 							clientThread.getOs().println("USR_LOC|"+res.getPhoneNum()+"|"+res.getEventId()+"|"+res.getLat()+"|"+res.getLon());
 						}
 					}

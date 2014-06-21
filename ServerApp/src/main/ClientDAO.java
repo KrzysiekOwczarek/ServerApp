@@ -22,36 +22,43 @@ class ClientDAO {
  
     public ClientDAO() { }
 
-    public void writeLocation(String phoneNum, int id, String lat, String lon, String date) {
-    	query = "INSERT INTO locations(id, eventId, phoneNum, lat, lon, date) "
+    public synchronized void writeUser(String phoneNum, int eventId) {
+    	
+    	String query = null;
+    	
+    	if(eventId != 0 && phoneNum != null) {
+    		
+    		if(!checkUser(phoneNum)) {
+    			query = "INSERT INTO users(id, eventId, phoneNum) "
+	    			+ "VALUES (NULL, '" + eventId + "', '" + phoneNum + "')";
+    		}else {
+    			query = "UPDATE users SET eventId = '"+eventId+"' WHERE phoneNum LIKE '"+phoneNum+"'";
+    		}
+	    	
+	    	try {
+	            Class.forName(DBDRIVER).newInstance();
+	            connection = DriverManager.getConnection(DBURL, DBUSER, DBPASS);
+	            statement = connection.createStatement();
+	            statement.executeUpdate(query);
+	 
+	            statement.close();
+	            connection.close();
+	        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException | SQLException e) {
+	            e.printStackTrace();
+	        }
+    	}
+    }
+
+    public synchronized void writeLocation(String phoneNum, int id, String lat, String lon, String date) {
+    	String query = "INSERT INTO locations(id, eventId, phoneNum, lat, lon, date) "
     			+ "VALUES (NULL, '" + id + "', '" + phoneNum + "', '" + lat + "', '" + lon + "', '" + date + "')";
     	
-    	if(id != 0)
-    		this.executeQuery();
-    }
-    
-    public boolean writeEvent(String phoneNum, String eventName, String lat, String lon, String date) {
-    	
-    	if(this.checkEvent(phoneNum, eventName, lat, lon, date) == 0) {
-    		query = "INSERT INTO events(id, phoneNum, name, lat, lon, date) "
-    			+ "VALUES (NULL, '" + phoneNum + "', '" + eventName + "', '" + lat + "', '" + lon + "', '" + date + "')";
-    	
-    		this.executeQuery();
-    		
-    		return true;
-    	}
-    	
-    	return false;
-    }
-    
-    private void executeQuery() {
     	try {
             Class.forName(DBDRIVER).newInstance();
             connection = DriverManager.getConnection(DBURL, DBUSER, DBPASS);
             statement = connection.createStatement();
             statement.executeUpdate(query);
  
-            //zwolnienie zasobów i zamknięcie połączenia
             statement.close();
             connection.close();
         } catch (InstantiationException | IllegalAccessException | ClassNotFoundException | SQLException e) {
@@ -59,8 +66,33 @@ class ClientDAO {
         }
     }
     
+    public synchronized boolean writeEvent(String phoneNum, String eventName, String lat, String lon, String date) {
+    	
+    	if(this.checkEvent(phoneNum, eventName, lat, lon, date) == 0) {
+    		String query = "INSERT INTO events(id, phoneNum, name, lat, lon, date) "
+    			+ "VALUES (NULL, '" + phoneNum + "', '" + eventName + "', '" + lat + "', '" + lon + "', '" + date + "')";
+    	
+    		try {
+                Class.forName(DBDRIVER).newInstance();
+                connection = DriverManager.getConnection(DBURL, DBUSER, DBPASS);
+                statement = connection.createStatement();
+                statement.executeUpdate(query);
+     
+                statement.close();
+                connection.close();
+            } catch (InstantiationException | IllegalAccessException | ClassNotFoundException | SQLException e) {
+                e.printStackTrace();
+            }
+    		
+    		return true;
+    	}
+    	
+    	return false;
+    }
+    
     public int checkEvent(String phoneNum, String eventName, String lat, String lon, String date) {
-    	query = "SELECT id FROM events WHERE phoneNum LIKE '" + phoneNum + "' AND name LIKE '" + eventName + "' "
+    	
+    	String query = "SELECT id FROM events WHERE phoneNum LIKE '" + phoneNum + "' AND name LIKE '" + eventName + "' "
     			+ "AND lat LIKE '" + lat + "' AND lon LIKE '" + lon + "' AND date LIKE '" + date + "'";
     	
     	ResultSet result = null;
@@ -69,15 +101,13 @@ class ClientDAO {
             Class.forName(DBDRIVER).newInstance();
             connection = DriverManager.getConnection(DBURL, DBUSER, DBPASS);
             statement = connection.createStatement();
-            //statement.executeUpdate(query);
- 
             result = statement.executeQuery(query);
-            //zwolnienie zasobów i zamknięcie połączenia
             
-			if(result.first())
-				return Integer.parseInt(result.getString("id"));
-    		
-            
+            while(result.next()) {
+            	if(result.getInt("id") != 0)
+            		return result.getInt("id");
+            }
+
             statement.close();
             connection.close();
         } catch (InstantiationException | IllegalAccessException | ClassNotFoundException | SQLException e) {
@@ -98,15 +128,13 @@ class ClientDAO {
             Class.forName(DBDRIVER).newInstance();
             connection = DriverManager.getConnection(DBURL, DBUSER, DBPASS);
             statement = connection.createStatement();
-            //statement.executeUpdate(query);
- 
             result = statement.executeQuery(query);
-            //zwolnienie zasobów i zamknięcie połączenia
             
-			if(result.first())
-				return Integer.parseInt(result.getString("id"));
+            while(result.next()) {
+            	if(result.getInt("id") != 0)
+            		return result.getInt("id");
+            }
     		
-            
             statement.close();
             connection.close();
         } catch (InstantiationException | IllegalAccessException | ClassNotFoundException | SQLException e) {
@@ -114,6 +142,31 @@ class ClientDAO {
         }
     	
     	return 0;
+    }   
+    //OK
+   
+    public boolean checkUser(String phoneNum) {
+    	String query = "SELECT * FROM users WHERE phoneNum LIKE '"+phoneNum+"'";
+    	
+    	try {
+            Class.forName(DBDRIVER).newInstance();
+            connection = DriverManager.getConnection(DBURL, DBUSER, DBPASS);
+            statement = connection.createStatement();
+            
+            ResultSet result = statement.executeQuery(query);
+ 
+            while(result.next()) {
+            	if(result.getInt("id") != 0)
+            		return true;
+            }
+            
+            statement.close();
+            connection.close();
+        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException | SQLException e) {
+            e.printStackTrace();
+        }
+    	
+    	return false;
     }
     
     public SQLEventResult getEventById(int eventId) {
@@ -145,6 +198,8 @@ class ClientDAO {
     	
     	return eventResult;
     }
+    
+    //OK
     
     public ArrayList<SQLLocationResult> getLocations() {
     	ArrayList<SQLLocationResult> locationResults = new ArrayList<SQLLocationResult>();

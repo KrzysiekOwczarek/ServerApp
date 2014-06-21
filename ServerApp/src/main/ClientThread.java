@@ -6,14 +6,13 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 
 class ClientThread extends Thread {
-	private String clientPhoneNum = null;
 	private Socket clientSocket = null;
-	private int clientEventId = 0;
 	private DataInputStream is = null;
 	private PrintStream os = null;
 	private BufferedReader reader = null;
@@ -21,10 +20,13 @@ class ClientThread extends Thread {
 	private ClientDAO databaseConnection = new ClientDAO(); //DO SINGLETONA
 	private boolean active = false;
 	
+	private int eventId = 0;
+	private String phoneNum = null;
+	
 	private ArrayList<ClientThread> clientThreads;
 	
-	private int timeout = 120000;
-	private int maxTimeout = 180000;
+	private int timeout = 10000;
+	private int maxTimeout = 20000;
 	
 	volatile long lastReadTime;
 	
@@ -39,7 +41,7 @@ class ClientThread extends Thread {
 	
 	public void run() {
 		try {
-			//this.clientSocket.setSoTimeout(timeout);
+			this.clientSocket.setSoTimeout(timeout);
 			is = new DataInputStream(clientSocket.getInputStream());
 			os = new PrintStream(clientSocket.getOutputStream());
 			reader = new BufferedReader(new InputStreamReader(is));
@@ -49,14 +51,17 @@ class ClientThread extends Thread {
 					String[] parts = null;
 					String line = reader.readLine();
 					
-					if(line != null)
+					if(line != null) {
 						parts = line.split("\\|");
+						lastReadTime = System.currentTimeMillis();
+						System.out.println(lastReadTime + "!");
+					}
 					
 					if(parts != null)
 						switch(parts[0]) {
 							case "HELLO": //PHONE_NUM
 								try{
-									this.clientPhoneNum = parts[1];
+									this.phoneNum = parts[1];
 									this.sendMsg("self", "HELLO_OK");
 								}catch(ArrayIndexOutOfBoundsException ex) {
 									this.sendMsg("self", "RE|HELLO");
@@ -70,7 +75,7 @@ class ClientThread extends Thread {
 									Date date = new Date();
 									SimpleDateFormat ft = new SimpleDateFormat ("yyyy-MM-dd HH:mm:ss");
 									try {
-										this.databaseConnection.writeLocation(parts[1], this.clientEventId, parts[2], parts[3], ft.format(date));
+										this.databaseConnection.writeLocation(parts[1], this.eventId, parts[2], parts[3], ft.format(date));
 									}catch(ArrayIndexOutOfBoundsException ex) {
 										this.sendMsg("self", "WRG_COMM");
 									}
@@ -83,7 +88,7 @@ class ClientThread extends Thread {
 									this.databaseConnection.writeEvent(parts[1], parts[2], parts[3], parts[4], parts[5]);
 									int eventId = this.databaseConnection.checkEvent(parts[1], parts[2], parts[3], parts[4], parts[5]);
 									if(eventId != 0){
-										this.clientEventId = eventId;
+										this.eventId = eventId;
 										this.active = true;
 										this.sendMsg("self", "EVENT_OK|"+eventId);
 									}else {
@@ -101,9 +106,12 @@ class ClientThread extends Thread {
 								try{
 									if(parts[2] != null && Integer.parseInt(parts[2]) != 0) {
 										if(this.databaseConnection.checkEventById(Integer.parseInt(parts[2])) != 0) {
-											this.clientEventId = Integer.parseInt(parts[2]);
+											this.eventId = Integer.parseInt(parts[2]);
 											this.active = true;
-											SQLEventResult result = this.databaseConnection.getEventById(clientEventId);
+											
+											this.databaseConnection.writeUser(parts[1], Integer.parseInt(parts[2]));
+											
+											SQLEventResult result = this.databaseConnection.getEventById(this.eventId);
 											this.sendMsg("self", "REG_OK|"+result.getId()+"|"+result.getName()+"|"+result.getLat()+"|"+result.getLon()+"|"+result.getDate());
 										}else{
 											this.sendMsg("self", "REG_NOT_OK");
@@ -119,6 +127,18 @@ class ClientThread extends Thread {
 							
 						}
 					
+				}catch(SocketTimeoutException e) {
+					if (!isConnectionAlive()) {
+				        server.log("CLIENT " + this.phoneNum + " TIMEOUT!");
+				       
+				        for (int i = 0; i < clientThreads.size(); i++) {
+				        	if(clientThreads.get(i) != null && clientThreads.get(i).phoneNum == this.phoneNum) {
+				        		clientThreads.get(i).terminateThread();
+				        		clientThreads.remove(i);
+				        	}
+				        }
+				        
+				    }
 				}catch(IOException ex) {
 					ex.printStackTrace();
 				}
@@ -169,7 +189,7 @@ class ClientThread extends Thread {
 			ex.printStackTrace();
 		}
 		
-		this.server.log("Client " + this.clientPhoneNum + " terminated");
+		this.server.log("Client " + this.phoneNum + " terminated");
 	}
 	
 	public void sendMsg(String phoneNum, String msg) {
@@ -178,9 +198,9 @@ class ClientThread extends Thread {
 				this.os.println(msg);
 			else
 	        	for (int i = 0; i < clientThreads.size(); i++) {
-	        		if (clientThreads.get(i) != null && clientThreads.get(i).clientPhoneNum == phoneNum) {
+	        		if (clientThreads.get(i) != null && clientThreads.get(i).phoneNum == phoneNum) {
 	        			clientThreads.get(i).os.println(msg);
-	        			this.server.log("Msg: " + msg + " send to client " + clientThreads.get(i).clientPhoneNum);
+	        			this.server.log("Msg: " + msg + " send to client " + clientThreads.get(i).phoneNum);
 	        		}
 	            }
 	}
@@ -188,9 +208,9 @@ class ClientThread extends Thread {
 	public synchronized void broadcastMsg(String msg) {
 		if(msg != null)
         	for (int i = 0; i < clientThreads.size(); i++) {
-        		if (clientThreads.get(i) != null && clientThreads.get(i).clientPhoneNum != null) {
+        		if (clientThreads.get(i) != null && clientThreads.get(i).phoneNum != null) {
         			clientThreads.get(i).os.println(msg);
-        			this.server.log("Msg: " + msg + " send to client " + clientThreads.get(i).clientPhoneNum);
+        			this.server.log("Msg: " + msg + " send to client " + clientThreads.get(i).phoneNum);
         		}
             }
 	}
@@ -216,12 +236,12 @@ class ClientThread extends Thread {
 		return os;
 	}
 
-	public int getClientEventId() {
-		return clientEventId;
+	public int getEventId() {
+		return eventId;
 	}
 
-	public String getClientPhoneNum() {
-		return clientPhoneNum;
+	public String getPhoneNum() {
+		return phoneNum;
 	}
 	
 	

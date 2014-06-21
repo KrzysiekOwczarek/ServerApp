@@ -34,7 +34,7 @@ public class MyServerApp implements Runnable {
 		if(serverSocket != null)
 			System.out.println("Server started on port: " + this.serverPort);
 		
-		BroadcastThread broadcastThread = new BroadcastThread(clientThreads);
+		BroadcastThread broadcastThread = new BroadcastThread(clientThreads, this);
 		broadcastThread.start();
 		
 		while(!isStopped()) {
@@ -75,4 +75,9 @@ public class MyServerApp implements Runnable {
 	public void log(String string) {
 		System.out.println(string);
 	}
+
+	public ArrayList<ClientThread> getClientThreads() {
+		return clientThreads;
+	}
+	
 }
