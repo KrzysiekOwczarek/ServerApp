@@ -18,15 +18,14 @@ class ClientThread extends Thread {
 	private BufferedReader reader = null;
 	private MyServerApp server = null;
 	private ClientDAO databaseConnection = new ClientDAO(); //DO SINGLETONA
-	private boolean active = false;
 	
 	private int eventId = 0;
 	private String phoneNum = null;
 	
 	private ArrayList<ClientThread> clientThreads;
 	
-	private int timeout = 10000;
-	private int maxTimeout = 20000;
+	private int timeout = 120000;
+	private int maxTimeout = 180000;
 	
 	volatile long lastReadTime;
 	
@@ -54,7 +53,6 @@ class ClientThread extends Thread {
 					if(line != null) {
 						parts = line.split("\\|");
 						lastReadTime = System.currentTimeMillis();
-						System.out.println(lastReadTime + "!");
 					}
 					
 					if(parts != null)
@@ -71,7 +69,7 @@ class ClientThread extends Thread {
 								
 							case "LOC": //PHONE_NUM|LAT|LON
 								//PRZYJECIE LOKALIZACJI OD USERA
-								if(this.active) {
+								if(this.eventId != 0) {
 									Date date = new Date();
 									SimpleDateFormat ft = new SimpleDateFormat ("yyyy-MM-dd HH:mm:ss");
 									try {
@@ -86,11 +84,11 @@ class ClientThread extends Thread {
 								//REJESTRACJA EVENTU -> ODESŁANIE PRZYDZIELONEGO UNIQUE ID
 								try {
 									this.databaseConnection.writeEvent(parts[1], parts[2], parts[3], parts[4], parts[5]);
-									int eventId = this.databaseConnection.checkEvent(parts[1], parts[2], parts[3], parts[4], parts[5]);
-									if(eventId != 0){
-										this.eventId = eventId;
-										this.active = true;
-										this.sendMsg("self", "EVENT_OK|"+eventId);
+									
+									if(this.databaseConnection.checkEvent(parts[1], parts[2], parts[3], parts[4], parts[5]).getId() != 0){
+										this.eventId = this.databaseConnection.checkEvent(parts[1], parts[2], parts[3], parts[4], parts[5]).getId();
+										String eventName = this.databaseConnection.checkEvent(parts[1], parts[2], parts[3], parts[4], parts[5]).getName();
+										this.sendMsg("self", "EVENT_OK|"+eventName+"|"+eventId);
 									}else {
 										this.sendMsg("self", "EVENT_NOT_OK");
 									}
@@ -107,9 +105,9 @@ class ClientThread extends Thread {
 									if(parts[2] != null && Integer.parseInt(parts[2]) != 0) {
 										if(this.databaseConnection.checkEventById(Integer.parseInt(parts[2])) != 0) {
 											this.eventId = Integer.parseInt(parts[2]);
-											this.active = true;
+											//this.active = true;
 											
-											this.databaseConnection.writeUser(parts[1], Integer.parseInt(parts[2]));
+											//this.databaseConnection.writeUser(parts[1], Integer.parseInt(parts[2]));
 											
 											SQLEventResult result = this.databaseConnection.getEventById(this.eventId);
 											this.sendMsg("self", "REG_OK|"+result.getId()+"|"+result.getName()+"|"+result.getLat()+"|"+result.getLon()+"|"+result.getDate());
@@ -142,44 +140,6 @@ class ClientThread extends Thread {
 				}catch(IOException ex) {
 					ex.printStackTrace();
 				}
-					/*
-						
-					
-					lastReadTime = System.currentTimeMillis();
-			        if (line != null && line.startsWith("/quit")) {
-			        	break;
-			        }
-			        
-			        if(line != null)
-				        synchronized (this) {
-				        	for (int i = 0; i < clientThreads.size(); i++) {
-				        		if (clientThreads.get(i) != null && clientThreads.get(i).clientName != null) {
-				        			clientThreads.get(i).os.println("<" + this.clientName + "> " + line);
-				        			this.server.log("Msg: " + line + " send to client " + clientThreads.get(i).clientName + " by " + this.clientName);
-				        		}
-				            }
-				        }
-				}catch(SocketTimeoutException e) {
-					if (!isConnectionAlive()) {
-				        server.log("CLIENT " + this.clientName + " TIMEOUT!");
-				       
-				        for (int i = 0; i < clientThreads.size(); i++) {
-				        	if(clientThreads.get(i) != null && clientThreads.get(i).clientName == this.clientName) {
-				        		clientThreads.get(i).terminateThread();
-				        		clientThreads.remove(i);
-				        	}
-				        }
-				        
-				    } else {
-				        sendHeartBeat(); //Send a heartbeat to the client
-				    }
-				}catch (SocketException e) {
-					e.printStackTrace();
-				}catch (IOException e) {
-					e.printStackTrace();
-				}
-				
-				*/
 			}
 			
 			this.clientSocket.close();
@@ -205,7 +165,7 @@ class ClientThread extends Thread {
 	            }
 	}
 	
-	public synchronized void broadcastMsg(String msg) {
+	/*public synchronized void broadcastMsg(String msg) {
 		if(msg != null)
         	for (int i = 0; i < clientThreads.size(); i++) {
         		if (clientThreads.get(i) != null && clientThreads.get(i).phoneNum != null) {
@@ -213,7 +173,7 @@ class ClientThread extends Thread {
         			this.server.log("Msg: " + msg + " send to client " + clientThreads.get(i).phoneNum);
         		}
             }
-	}
+	}*/
 	
 	public synchronized void terminateThread() {
 		this.isRunning = false;
@@ -226,10 +186,6 @@ class ClientThread extends Thread {
 	
 	public boolean isConnectionAlive() {
 	    return System.currentTimeMillis() - lastReadTime < maxTimeout;
-	}
-	
-	public void sendHeartBeat() {
-		this.os.println("CHECK_ALIVE");
 	}
 
 	public PrintStream getOs() {

@@ -36,7 +36,7 @@ public class BroadcastThread extends Thread{
 				try {
 					Thread.sleep(10000);
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
+					terminateThread();
 					e.printStackTrace();
 				}
 				
@@ -46,10 +46,5 @@ public class BroadcastThread extends Thread{
 	
 	public synchronized void terminateThread() {
 		this.isRunning = false;
-        //try {
-            //this.clientSocket.close();
-        //} catch (IOException e) {
-        //    throw new RuntimeException("Error closing client socket", e);
-        //}
 	}
 }
