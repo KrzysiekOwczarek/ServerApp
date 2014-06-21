@@ -34,7 +34,7 @@ public class MyServerApp implements Runnable {
 		if(serverSocket != null)
 			System.out.println("Server started on port: " + this.serverPort);
 		
-		BroadcastThread broadcastThread = new BroadcastThread(clientThreads, this);
+		BroadcastThread broadcastThread = new BroadcastThread(this);
 		broadcastThread.start();
 		
 		while(!isStopped()) {
@@ -56,8 +56,6 @@ public class MyServerApp implements Runnable {
 		}
 		
 	}
-	
-	//disconnect -> TODO
 	
 	private synchronized boolean isStopped() {
         return this.isStopped;

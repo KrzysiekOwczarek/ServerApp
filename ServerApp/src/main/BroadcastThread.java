@@ -5,14 +5,12 @@ import java.util.ArrayList;
 public class BroadcastThread extends Thread{
 	private ArrayList<ClientThread> clientThreads;
 	private boolean isRunning;
-	private ClientDAO databaseConnection;
+	private ClientDAO databaseConnection = new ClientDAO();
 	private ArrayList<SQLLocationResult> result = null;
 	private MyServerApp server = null;
 	
-	public BroadcastThread(ArrayList<ClientThread> clientThreads, MyServerApp server) {
-		this.clientThreads = clientThreads;
+	public BroadcastThread(MyServerApp server) {
 		this.isRunning = true;
-		this.databaseConnection = new ClientDAO();
 		this.server = server;
 	}
 	
@@ -32,7 +30,6 @@ public class BroadcastThread extends Thread{
 					}
 				}
 				
-	
 				try {
 					Thread.sleep(10000);
 				} catch (InterruptedException e) {

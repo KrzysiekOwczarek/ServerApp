@@ -17,8 +17,7 @@ class ClientThread extends Thread {
 	private PrintStream os = null;
 	private BufferedReader reader = null;
 	private MyServerApp server = null;
-	private ClientDAO databaseConnection = new ClientDAO(); //DO SINGLETONA
-	
+	private ClientDAO databaseConnection = new ClientDAO();	
 	private int eventId = 0;
 	private String phoneNum = null;
 	
@@ -68,7 +67,6 @@ class ClientThread extends Thread {
 								break;
 								
 							case "LOC": //PHONE_NUM|LAT|LON
-								//PRZYJECIE LOKALIZACJI OD USERA
 								if(this.eventId != 0) {
 									Date date = new Date();
 									SimpleDateFormat ft = new SimpleDateFormat ("yyyy-MM-dd HH:mm:ss");
@@ -81,7 +79,6 @@ class ClientThread extends Thread {
 								break;
 								
 							case "EVENT": //PHONE_NUM|EVENT_NAME|LAT|LON|DATE
-								//REJESTRACJA EVENTU -> ODESŁANIE PRZYDZIELONEGO UNIQUE ID
 								try {
 									this.databaseConnection.writeEvent(parts[1], parts[2], parts[3], parts[4], parts[5]);
 									
@@ -92,7 +89,6 @@ class ClientThread extends Thread {
 									}else {
 										this.sendMsg("self", "EVENT_NOT_OK");
 									}
-									//ZWRACA NOWE ID JESLI STWORZY A STARE JESLI JEST
 								}catch(ArrayIndexOutOfBoundsException ex) {
 									this.sendMsg("self", "WRG_COMM");
 								}
@@ -100,14 +96,10 @@ class ClientThread extends Thread {
 								break;
 								
 							case "REG": //PHONE_NUMBER|EVENTID
-								//ZAPISANIE USERA NA WYDARZENIE
 								try{
 									if(parts[2] != null && Integer.parseInt(parts[2]) != 0) {
 										if(this.databaseConnection.checkEventById(Integer.parseInt(parts[2])) != 0) {
 											this.eventId = Integer.parseInt(parts[2]);
-											//this.active = true;
-											
-											//this.databaseConnection.writeUser(parts[1], Integer.parseInt(parts[2]));
 											
 											SQLEventResult result = this.databaseConnection.getEventById(this.eventId);
 											this.sendMsg("self", "REG_OK|"+result.getId()+"|"+result.getName()+"|"+result.getLat()+"|"+result.getLon()+"|"+result.getDate());
@@ -115,14 +107,12 @@ class ClientThread extends Thread {
 											this.sendMsg("self", "REG_NOT_OK");
 										}
 									}
-									//SPRAWDŹ CZY ISTNIEJE
 									
 								}catch(ArrayIndexOutOfBoundsException ex) {
 									this.sendMsg("self", "WRG_COMM");
 								}
-								//READ FROM EVENT DB
+
 								break;
-							
 						}
 					
 				}catch(SocketTimeoutException e) {
@@ -165,16 +155,6 @@ class ClientThread extends Thread {
 	            }
 	}
 	
-	/*public synchronized void broadcastMsg(String msg) {
-		if(msg != null)
-        	for (int i = 0; i < clientThreads.size(); i++) {
-        		if (clientThreads.get(i) != null && clientThreads.get(i).phoneNum != null) {
-        			clientThreads.get(i).os.println(msg);
-        			this.server.log("Msg: " + msg + " send to client " + clientThreads.get(i).phoneNum);
-        		}
-            }
-	}*/
-	
 	public synchronized void terminateThread() {
 		this.isRunning = false;
         try {
@@ -199,6 +179,5 @@ class ClientThread extends Thread {
 	public String getPhoneNum() {
 		return phoneNum;
 	}
-	
 	
 }
